@@ -4,10 +4,11 @@ from rest_framework import status
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import json
+from pymongo import MongoClient
 
 # Create your views here.
 
-def read_data_from_json(dpath='overview/static/test.json'):
+def read_data_from_json(dpath='overview/static/itemsdata.json'):
 
     with open(dpath) as f:
         data = json.load(f)
@@ -16,7 +17,14 @@ def read_data_from_json(dpath='overview/static/test.json'):
 
 @api_view(['GET'])
 def overview(request):
-    data = read_data_from_json()
+    client = MongoClient("mongodb+srv://test_db_user:wy1d3VNenoBmkfx5@cluster0.ohz7z5a.mongodb.net/?retryWrites=true&w=majority")
+    db = client.test
+    collection = db.items
+
+    all_items = collection.find({},{ "_id": 0})
+    data = list()
+    for item in all_items:
+        data.append(item)
 
     return Response(data)
 
@@ -80,12 +88,20 @@ def add_new_item(request):
 
 @api_view(['POST'])
 def add_item(request):
-    data = read_data_from_json()
+    
+    client = MongoClient("mongodb+srv://test_db_user:wy1d3VNenoBmkfx5@cluster0.ohz7z5a.mongodb.net/?retryWrites=true&w=majority")
+    db = client.test
+    collection = db.items
+
     new_item = request.data['item']
-    data.append(new_item)
-    with open('overview/static/itemsdata.json', 'w') as f:
-        f.write(json.dumps(data))
-    return Response(new_item)
+    print(new_item,"before adding to mongo")
+
+    collection.insert_one(new_item)
+    print(new_item,"after adding mongo")
+
+    new_item["_id"] = str(new_item["_id"])
+
+    return Response({'added_item':new_item})
 
 @api_view(['PATCH'])
 def update_item(request):
