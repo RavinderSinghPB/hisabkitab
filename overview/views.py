@@ -24,11 +24,11 @@ def read_data_from_json(dpath='overview/static/itemsdata.json'):
     return data
 
 
-# def connect_mongo(db_name='test'):
-#     client=MongoClient('mongodb+srv://test_db_user:wy1d3VNenoBmkfx5@cluster0.ohz7z5a.mongodb.net/?retryWrites=true&w=majority')
-#     db=client[db_name]
+def connect_mongo(db_name='test'):
+    client=MongoClient('mongodb+srv://test_db_user:wy1d3VNenoBmkfx5@cluster0.ohz7z5a.mongodb.net/?retryWrites=true&w=majority')
+    db=client[db_name]
 
-#     return client,db
+    return client,db
 
 @api_view(['GET'])
 def overview(request):
@@ -57,15 +57,19 @@ def category_data(request):
     collection = db['items']
 
     all_items=collection.find()
-    catg_data = dict()
+    catg_data = []
     for item in all_items:
         item['_id']= str(item['_id'])
-        if item['category'] in catg_data:
-            [catg_data[item['category']]].append(item)
-        else:
-            catg_data[item['category']]=(item)
-    client.close()        
-    return Response(catg_data)            
+
+        catg_data.append(item)
+        # if item['category'] in catg_data:
+        #     [catg_data[item['category']]].append(item)
+        # else:
+        #     catg_data[item['category']]=(item)
+    client.close()
+
+    # print(catg_data)      
+    return render(request, 'overview/catg.html', {'catg_data': catg_data[:10]})          
 
 
 @api_view(['GET'])
@@ -269,11 +273,11 @@ def filter_catg(request):#filter_catg
     return Response(result)
 
 # new
-def connect_mongo(db_name='hisabkitab'):
-    client=MongoClient('mongodb://localhost:27017')
-    db=client[db_name]
+# def connect_mongo(db_name='hisabkitab'):
+#     client=MongoClient('mongodb://localhost:27017')
+#     db=client[db_name]
 
-    return client,db
+#     return client,db
 
 @api_view(["GET", "POST", "PATCH"])
 def user_registrations(request):
