@@ -10,7 +10,8 @@ from bson import ObjectId
 import smtplib
 from email.mime.text import MIMEText
 from django.core.mail import send_mail
-
+import bson
+import datetime
 
 
 # Create your views here.
@@ -22,11 +23,11 @@ def read_data_from_json(dpath='overview/static/itemsdata.json'):
     return data
 
 
-def connect_mongo(db_name='test'):
-    client=MongoClient('mongodb+srv://test_db_user:wy1d3VNenoBmkfx5@cluster0.ohz7z5a.mongodb.net/?retryWrites=true&w=majority')
-    db=client[db_name]
+# def connect_mongo(db_name='test'):
+#     client=MongoClient('mongodb+srv://test_db_user:wy1d3VNenoBmkfx5@cluster0.ohz7z5a.mongodb.net/?retryWrites=true&w=majority')
+#     db=client[db_name]
 
-    return client,db
+#     return client,db
 
 
 @api_view(['GET'])
@@ -257,3 +258,193 @@ def filter_catg(request):#filter_catg
     client.close()
     return Response(result)
 
+# new
+def connect_mongo(db_name='hisabkitab'):
+    client=MongoClient('mongodb://localhost:27017')
+    db=client[db_name]
+
+    return client,db
+
+@api_view(["GET", "POST", "PATCH"])
+def user_registrations(request):
+    client,db = connect_mongo()
+    collection = db['user_resistation']
+    if request.method == "GET":
+        # handle GET request
+        users = collection.find()
+        user_list = []
+        for user in users:
+            user["_id"] = str(user['_id'])
+            user["signup_date"] = str(user["signup_date"])
+            user_list.append(user)
+        return Response(user_list)
+    
+    elif request.method == "POST":
+        # handle POST request
+        try:
+            now = datetime.datetime.utcnow()
+            username = request.data.get("username")
+            password = request.data.get("password")
+            email = request.data.get("email")
+            signup_date = bson.ObjectId.from_datetime(now)
+            user_name = collection.find_one({"username":username})
+            user_email = collection.find_one({"email":email})
+            if user_name:
+                return Response({"error": "That username is taken. Try another"})
+            elif user_email:
+                return Response({"error": "That email is taken. Try another"})
+            else:
+                user ={"_id":email,
+                    "username": username,
+                    "password": password,
+                    "email": email,
+                    "signup_date": signup_date}
+                status = collection.insert_one(user)
+                if status.acknowledged:
+                    #collection = db["user_data"]
+                    #cont= db.collection.aggregate([{"$match": { "_id": username}},{"$project": {"dataSize": { "$size": { "$objectToArray": "$data" } }}}])
+                    #items = {}
+
+
+                    user_items = {"_id":username,"data":{}}
+                    user_status=db["user_data"].insert_one(user_items)
+                    if user_status.acknowledged:
+                        return Response({"message": "new user inserted with id " + str(status.inserted_id)})
+
+
+                #return Response({"message": "new user inserted with id " + str(status.inserted_id)})
+
+        except Exception as e:
+            return Response({"error": str(e)})
+    
+    elif request.method == "PATCH":
+        # handle PATCH request
+        email = request.data.get("email")
+        password = request.data.get("password")
+        count = collection.count_documents({"email":email})
+        if count == 0:
+            return Response({"error": "User not found"})
+        else:
+            collection.update_one({"email":email}, {"$set": {"password": password}})
+            return Response({"message": "User password updated"})
+    client.close()
+    return Response({"message":"somthing is wrong"})
+#for new database
+def connect_mongo_1(db_name='Multiuserdb'):
+    client=MongoClient('mongodb+srv://12mukesh:mukesh12@cluster0.ho3xvso.mongodb.net/test')
+    db=client[db_name]
+
+    return client,db
+
+
+@api_view(["GET", "POST", "PATCH"])
+def user_data(request):
+
+    client,db = connect_mongo_1()
+    collection = db["users"]
+    if request.method == "GET":
+        # handle GET request
+        users = collection.find()
+        user_list = []
+        for user in users:
+            user["_id"] = str(user['_id'])
+            user["signup_date"] = str(user["signup_date"])
+            user_list.append(user)
+        return Response(user_list)
+    
+    elif request.method == "POST":
+        # handle POST request
+        try:
+            now = datetime.datetime.utcnow()
+            username = request.data.get("username")
+            password = request.data.get("password")
+            email = request.data.get("email")
+            users_id =[]
+            users_id.append(username)
+            bank_name = request.data.get("bank_name")
+            signup_date = bson.ObjectId.from_datetime(now)
+            user_name = collection.find_one({"username":username})
+            user_email = collection.find_one({"email":email})
+            if user_name:
+                return Response({"error": "That username is taken. Try another"})
+            elif user_email:
+                return Response({"error": "That email is taken. Try another"})
+            else:
+                user ={"_id":email,
+                    "username": username,
+                    "password": password,
+                    "email": email,
+                    "users_id": users_id,
+                    "account": {bank_name:2600,"HDFC":1000},
+                    "signup_date": signup_date}
+                status = collection.insert_one(user)
+                # if status == "success":
+                #     collection = db["users data"]
+                #     user_items = {"_id":username,"data":{"_id":}}
+                if status.acknowledged: 
+                    user_items = {"_id":username,"data":{}}
+                    user_status=db["user_data"].insert_one(user_items)
+                    if user_status.acknowledged:
+                        return Response({"message": "new user inserted with id " + str(status.inserted_id)})
+
+
+                return Response({"message": "new user inserted with id " + str(status.inserted_id)})
+
+        except Exception as e:
+            return Response({"error": str(e)})
+    
+    elif request.method == "PATCH":
+        # handle PATCH request
+        email = request.data.get("email")
+        password = request.data.get("password")
+        count = collection.count_documents({"email":email})
+        if count == 0:
+            return Response({"error": "User not found"})
+        else:
+            collection.update_one({"email":email}, {"$set": {"password": password}})
+            return Response({"message": "User password updated"})
+    client.close()
+    return Response({"message":"somthing is wrong"})
+
+def connect_mongo_2(db_name='hisabkitab_practice'):
+    client=MongoClient('mongodb://localhost:27017')
+    db=client[db_name]
+
+    return client,db
+        
+
+@api_view(["POST", "GET"])
+def add_members(request):
+    client, db = connect_mongo_2()
+    collection = db["users"]
+    
+    member_username = request.data.get("member_username")
+    name_of_member = request.data.get("name_of_member")
+    your_username = request.data.get("your_username")
+    your_name = request.data.get("your_name")
+    status = "Approved"
+
+    request_data ={"your_name": your_name, "status": status}
+    send_data = {"member_username": member_username, "name_of_member": name_of_member, "status": status}
+
+    try:
+        if status == "pending":
+            status_message = collection.update_one({"username": member_username}, {"$set": {"members.pending."+your_username: request_data}})
+            status_message_1 = collection.update_one({"username": your_username}, {"$set": {"family_admin": {"pending": {member_username: send_data}}}})
+            if status_message.acknowledged:
+                return Response({"message": "Member request added successfully."})
+            else:
+                return Response({"message": "Member request"})
+        else:
+            status_message = collection.update_one({"username": member_username}, {"$set": {"members.Approved."+your_username: request_data}})
+            status_message_1 = collection.update_one({"username": your_username}, {"$set": {"family_admin.Approved."+member_username: send_data}})
+            status_message_2 = collection.update_one({"username": member_username}, {"$unset": {"members.pending."+your_username: ""}})
+            status_message_3 = collection.update_one({"username": your_username}, {"$unset": {"family_admin.pending."+member_username: ""}})
+            if status_message.acknowledged and status_message_1.acknowledged and status_message_2.acknowledged and status_message_3.acknowledged:
+                return Response({"message": "Member request approved successfully."})
+            else:
+                return Response({"message": "Failed to approve member request."})
+    except Exception as e:
+        return Response({"message": str(e)})
+    finally:
+        client.close()
