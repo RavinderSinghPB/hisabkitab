@@ -5,11 +5,20 @@ from rest_framework.decorators import api_view
 from rest_framework.response import Response
 import json
 from datetime import datetime as dt
+from datetime import timedelta
 from pymongo import MongoClient
 from bson import ObjectId
 import smtplib
 from email.mime.text import MIMEText
 from django.core.mail import send_mail
+from dateutil import parser
+#new
+from rest_framework import status
+from rest_framework.decorators import api_view
+from rest_framework.response import Response
+from .serializers import CustomerSerializer
+from .models import Customer
+from django.contrib.auth.models import User
 
 
 
@@ -28,20 +37,25 @@ def connect_mongo(db_name='test'):
 
     return client,db
 
-
 @api_view(['GET'])
 def overview(request):
     client,db = connect_mongo()
     collection = db['items']
 
-    all_items=collection.find()
-    data=list()
+    all_items = collection.find()
+    data = []
     for item in all_items:
-        item['_id']= str(item['_id'])
+        
+        date_str = item["date"]
+        item['price']=int(item['price'])
+        #date_obj=dt.strftime(date_str,"%Y-%m-%d") #string formate date
+        date_obj=dt.strptime(date_str,"%Y-%m-%d") #date formate
+        collection.update_one({"_id": item["_id"]}, {"$set": {"date": date_obj}})
+        item['_id'] = str(item['_id'])
         data.append(item)
 
     client.close()
-    return Response(data)    
+    return Response(data)
 
 
 @api_view(['GET'])
@@ -64,6 +78,7 @@ def category_data(request):
 @api_view(['GET'])
 def date_wise_data(request):
     date = request.GET.get('date')
+    date_obj=dt.strptime(date,"%Y-%m-%d")
     client,db = connect_mongo()
     collection = db['items']
 
@@ -71,7 +86,7 @@ def date_wise_data(request):
     date_data = list()
     for item in all_items:
         item['_id']= str(item['_id'])
-        if item['date']==date:
+        if item['date']==date_obj:
             date_data.append(item)  
     client.close()        
     return Response((date_data))        
@@ -80,6 +95,7 @@ def date_wise_data(request):
 @api_view(['GET'])
 def date_catg_wise_data(request):
     date, catg = request.GET.get('date'), request.GET.get('catg')
+    date_obj=dt.strptime(date,"%Y-%m-%d")
     client,db = connect_mongo()
     collection = db['items']
 
@@ -87,7 +103,7 @@ def date_catg_wise_data(request):
     date_catg_data = list()
     for item in all_items:
         item['_id']= str(item['_id'])
-        if item['date'] == date and item['category'] == catg:
+        if item['date'] == date_obj and item['category'] == catg:
             date_catg_data.append(item)
     client.close()        
     return Response(date_catg_data)         
@@ -108,7 +124,7 @@ def add_new_item(request):
         f.write(json.dumps(data))
     return Response(new_item)
 
-@api_view(['POST'])
+@api_view(['POST']) #Sending Email Add item
 def add_item(request):
 
     client,db = connect_mongo()
@@ -154,9 +170,10 @@ def date_max_itm_price(request):
     max=0
     itm=''
     date= request.GET.get('date')
+    date_obj=dt.strptime(date,"%Y-%m-%d")
     for item in all_items:
         item['_id']= str(item['_id'])
-        if item['date']==date and int(item['price'])>max:
+        if item['date']==date_obj and int(item['price'])>max:
             max=int(item['price'])
             itm=item['item']
             category=item['category']
@@ -219,6 +236,7 @@ def latest_date(request):
 @api_view(['GET']) #Particular_date_data
 def Particular_date_data(request):
     date = request.GET.get('date')
+    date_obj=dt.strptime(date,"%Y-%m-%d")
     client,db = connect_mongo()
     collection = db['items']
 
@@ -226,7 +244,7 @@ def Particular_date_data(request):
     parti_det=dict()
     for item in all_items:
         item['_id']= str(item['_id'])
-        if item['date']==date:
+        if item['date']==date_obj:
             if item['date'] in parti_det:
                 parti_det[item['date']]['item'].append([item['item']])
                 parti_det[item['date']]['total_item']+=1
@@ -256,4 +274,55 @@ def filter_catg(request):#filter_catg
         
     client.close()
     return Response(result)
+
+
+
+#add new database
+def connect_mongo_1(db_name='Multiuserdb'):
+    client=MongoClient("mongodb+srv://12mukesh:mukesh12@cluster0.ho3xvso.mongodb.net/test")
+    db=client[db_name]
+
+    return client,db
+
+counter=0
+def generate_id():
+    global counter
+    counter+=1
+    return "id_"+str(counter)
+ 
+def update_account_balance(price, bnk,user_data):
+    account_balance =user_data["account"].get(bnk,0) # current account balance for the given bank
+    new_balance = account_balance - price  # calculate the new balance after subtracting the price
+    user_data["account"][bnk] = new_balance  # update the balance for the given bank
+    return new_balance
+
+@api_view(['POST'])
+def add_item_update_balance(request):
+    client,db = connect_mongo_1()
+    collection = db['users']
+    data_collection=db['user_data']
+
+    new_item = request.data['item']
+    price = int(new_item['price'])
+    new_item['date']=dt.strptime(new_item['date'],"%Y-%m-%d") #date formate
+    bnk=request.data.get("item").get("bank_name")
+     
+    user_data=collection.find_one({"email":"mithilesh129@gmail.com"})
+    update_account_balance(price,bnk,user_data)
+    
+    #collection.update_one({"email":"mithilesh129@gmail.com"},{"$set":{"account":user_data["account"]}})
+    collection.update_one({"email":"mithilesh129@gmail.com"},{"$inc":{f"account.{bnk}":-price}})
+
+    new_id=generate_id()
+    status = data_collection.update_one({"_id":'mithilesh1234'},{"$set":{"data."+new_id:new_item}})
+    send_mail(
+        'New Add item', #Subject
+        f"{new_item} Current Account Balance:{user_data}",  #body
+        'rachitsingh06938@gmail.com',  #username
+        ['mukeshsingh08082002@gmail.com'], #jis pe mail send karna hai
+        fail_silently=False,
+    )
+    print("send email successfully")
+    client.close()
+    return Response({'added_item':new_item, 'account_balance':user_data["account"]}) 
 
