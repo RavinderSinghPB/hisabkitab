@@ -272,12 +272,7 @@ def filter_catg(request):#filter_catg
     client.close()
     return Response(result)
 
-# new
-# def connect_mongo(db_name='hisabkitab'):
-#     client=MongoClient('mongodb://localhost:27017')
-#     db=client[db_name]
 
-#     return client,db
 
 @api_view(["GET", "POST", "PATCH"])
 def user_registrations(request):
